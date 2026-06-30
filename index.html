@@ -25,11 +25,11 @@
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-2 sm:p-4 selection:bg-amber-500 selection:text-slate-950">
 
-<div class="bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl max-w-4xl w-full p-4 sm:p-6 backdrop-blur-md relative overflow-hidden">
+<div class="bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl max-w-4xl w-full p-4 sm:p-6 backdrop-blur-md relative overflow-y-auto custom-scrollbar max-h-[95vh]">
     <div class="absolute -top-40 -left-40 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
     <div class="absolute -bottom-40 -right-40 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-    <div id="loading-overlay" class="absolute inset-0 bg-slate-950/80 z-50 flex flex-col items-center justify-center fade-in">
+    <div id="loading-overlay" class="absolute inset-0 bg-slate-950/80 z-50 flex flex-col items-center justify-center fade-in rounded-3xl">
         <i data-lucide="loader-2" class="w-12 h-12 text-amber-500 animate-spin mb-4"></i>
         <p class="text-slate-300 font-bold">システムに接続中...</p>
     </div>
@@ -52,51 +52,66 @@
         </div>
     </div>
 
-    <div id="menu-screen" class="space-y-6 relative z-10 hidden">
-        
-        <div class="bg-gradient-to-r from-emerald-900/40 to-slate-800/40 border border-emerald-500/30 p-5 rounded-2xl">
-            <div class="flex items-center gap-2 mb-4">
-                <i data-lucide="swords" class="w-6 h-6 text-emerald-400"></i>
-                <h2 class="text-emerald-400 font-black text-lg">オンライン対戦ルーム</h2>
+    <div id="menu-screen" class="relative z-10 hidden">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            
+            <div class="bg-gradient-to-r from-emerald-900/40 to-slate-800/40 border border-emerald-500/30 p-5 rounded-2xl flex flex-col">
+                <div class="flex items-center gap-2 mb-4">
+                    <i data-lucide="swords" class="w-6 h-6 text-emerald-400"></i>
+                    <h2 class="text-emerald-400 font-black text-lg">オンライン対戦ルーム</h2>
+                </div>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-xs font-bold text-slate-400 mb-1">あなたの名前</label>
+                        <input type="text" id="player-name-input" placeholder="ゲスト" maxlength="8" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                    </div>
+                    <div class="pt-2">
+                        <button onclick="createRoom()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-3 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2">
+                            <i data-lucide="plus-circle" class="w-5 h-5"></i> 部屋を新しく作る
+                        </button>
+                    </div>
+                    <div class="flex items-center gap-2 py-1">
+                        <hr class="flex-1 border-slate-700"><span class="text-xs text-slate-500 font-bold">または</span><hr class="flex-1 border-slate-700">
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="join-room-id" placeholder="ルームID" maxlength="5" class="w-full uppercase bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                        <button onclick="joinRoom()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold px-4 py-2.5 rounded-xl transition-all whitespace-nowrap">参加する</button>
+                    </div>
+                </div>
             </div>
-            <div class="flex flex-col sm:flex-row gap-4 items-end">
-                <div class="w-full">
-                    <label class="block text-xs font-bold text-slate-400 mb-1">あなたの名前</label>
-                    <input type="text" id="player-name-input" placeholder="ゲスト" maxlength="8" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                </div>
-                <div class="w-full flex gap-2">
-                    <button onclick="createRoom()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl transition-all whitespace-nowrap shadow-lg">部屋を作る</button>
-                </div>
-                <div class="w-full flex gap-2">
-                    <input type="text" id="join-room-id" placeholder="ルームID" maxlength="5" class="w-full uppercase bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
-                    <button onclick="joinRoom()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold px-4 py-2.5 rounded-xl transition-all whitespace-nowrap">参加</button>
-                </div>
-            </div>
-        </div>
 
-        <div class="bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50 flex flex-col sm:flex-row justify-between items-center gap-4">
-            <h2 class="font-bold text-slate-200 flex items-center gap-1.5 text-sm"><i data-lucide="user" class="w-4 h-4 text-amber-500"></i> 一人プレイ設定</h2>
-            <div class="flex items-center gap-4 w-full sm:w-auto">
-                <label class="flex items-center gap-2 cursor-pointer bg-slate-900 px-3 py-2 rounded-xl border border-slate-800">
-                    <input type="checkbox" id="single-timer-toggle" class="rounded text-amber-500 focus:ring-amber-500 bg-slate-800 border-slate-700" checked>
-                    <span class="text-xs font-bold text-slate-300">タイマー有</span>
-                </label>
-                <div class="flex items-center gap-2 bg-slate-900 px-3 py-2 rounded-xl border border-slate-800">
-                    <span class="text-xs font-bold text-slate-400">1問の秒数:</span>
-                    <input type="number" id="single-timer-sec" value="30" min="5" max="120" class="w-14 bg-transparent text-amber-400 font-bold outline-none text-center">
+            <div class="space-y-4">
+                <div class="bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50">
+                    <h2 class="font-bold text-slate-200 flex items-center gap-1.5 text-sm mb-3"><i data-lucide="user" class="w-4 h-4 text-amber-500"></i> 一人プレイ設定</h2>
+                    <div class="flex flex-wrap items-center gap-2">
+                        <label class="flex items-center gap-2 cursor-pointer bg-slate-900 px-2.5 py-2 rounded-xl border border-slate-800 flex-1 justify-center">
+                            <input type="checkbox" id="single-timer-toggle" class="rounded text-amber-500 focus:ring-amber-500 bg-slate-800 border-slate-700" checked>
+                            <span class="text-[10px] font-bold text-slate-300">タイマー有</span>
+                        </label>
+                        <div class="flex items-center gap-1 bg-slate-900 px-2.5 py-2 rounded-xl border border-slate-800 flex-1 justify-center">
+                            <span class="text-[10px] font-bold text-slate-400">1問:</span>
+                            <input type="number" id="single-timer-sec" value="30" min="5" max="120" class="w-10 bg-transparent text-amber-400 font-bold outline-none text-center text-sm">
+                            <span class="text-[10px] text-slate-400">秒</span>
+                        </div>
+                        <div class="flex items-center gap-1 bg-slate-900 px-2.5 py-2 rounded-xl border border-slate-800 flex-1 justify-center">
+                            <span class="text-[10px] font-bold text-slate-400">出題:</span>
+                            <input type="number" id="single-q-count" value="10" min="1" max="100" class="w-10 bg-transparent text-amber-400 font-bold outline-none text-center text-sm">
+                            <span class="text-[10px] text-slate-400">問</span>
+                        </div>
+                    </div>
                 </div>
+
+                <div>
+                    <h2 class="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2"><i data-lucide="book-open" class="w-4 h-4 text-amber-400"></i> 出題範囲を選んで開始</h2>
+                    <div class="grid grid-cols-1 gap-2 max-h-[150px] overflow-y-auto pr-1 custom-scrollbar" id="modes-list">
+                        </div>
+                </div>
+                <button onclick="startSingleQuiz(8)" class="w-full relative group overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 text-slate-950 font-black p-3.5 rounded-xl transition-all hover:shadow-xl flex justify-between items-center">
+                    <span class="block text-sm font-black flex items-center gap-2"><i data-lucide="zap" class="w-4 h-4"></i> 全範囲ランダム</span>
+                    <i data-lucide="arrow-right" class="w-5 h-5"></i>
+                </button>
             </div>
         </div>
-
-        <div>
-            <h2 class="text-base font-extrabold text-slate-300 mb-3 flex items-center gap-2"><i data-lucide="book-open" class="w-5 h-5 text-amber-400"></i> 出題範囲（一人プレイ）</h2>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar" id="modes-list">
-                </div>
-        </div>
-        <button onclick="startSingleQuiz(8)" class="w-full relative group overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 text-slate-950 font-black p-4 rounded-2xl transition-all hover:shadow-xl hover:shadow-amber-500/20 flex justify-between items-center mt-3">
-            <span class="block text-base font-black flex items-center gap-2"><i data-lucide="zap" class="w-5 h-5"></i> 第8モード：全範囲ランダム（無限）</span>
-            <i data-lucide="arrow-right" class="w-6 h-6"></i>
-        </button>
     </div>
 
     <div id="lobby-screen" class="hidden space-y-6 relative z-10 fade-in">
@@ -175,8 +190,11 @@
                     <span id="global-timer-badge" class="hidden text-xs font-bold text-rose-400 bg-rose-400/10 px-2 py-1 rounded-lg flex items-center gap-1 border border-rose-500/30">
                         <i data-lucide="alarm-clock" class="w-3.5 h-3.5"></i> 残り <span id="global-timer-sec">0</span>秒
                     </span>
+                    <button onclick="quitQuiz()" class="text-[10px] font-bold bg-rose-500/10 text-rose-400 hover:bg-rose-500/30 px-2 py-1 rounded-lg border border-rose-500/30 transition-all flex items-center gap-1 ml-1">
+                        <i data-lucide="x-circle" class="w-3 h-3"></i>やめる
+                    </button>
                 </div>
-                <span id="quiz-progress" class="text-xs text-slate-400 font-mono font-bold">1問目</span>
+                <span id="quiz-progress" class="text-xs text-slate-400 font-mono font-bold">1 / 10問目</span>
             </div>
             
             <div class="bg-gradient-to-r from-amber-600/20 to-orange-600/20 px-4 py-2 rounded-2xl border border-amber-500/30 flex justify-between items-center sm:min-w-[200px]">
@@ -427,7 +445,6 @@
     let roomPlayers = {};
 
     // --- メニュー描画 ---
-    // ★修正点: 4つのモードに対応させました
     const modeNames = {
         1: "第一章（体の発達と特徴）", 
         2: "第二章（運動機能と生理的機能）", 
@@ -437,11 +454,11 @@
     function drawMenu() {
         const container = document.getElementById('modes-list');
         container.innerHTML = "";
-        for (let i = 1; i <= 4; i++) { // ★修正点: 3から4に変更
+        for (let i = 1; i <= 4; i++) {
             container.innerHTML += `
-                <button onclick="startSingleQuiz(${i})" class="w-full text-left p-3 rounded-xl bg-slate-800/40 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/30 transition-all flex justify-between items-center group">
-                    <span class="block font-bold text-slate-200 text-sm group-hover:text-amber-400">${modeNames[i]}</span>
-                    <i data-lucide="play-circle" class="w-5 h-5 text-slate-500 group-hover:text-amber-500"></i>
+                <button onclick="startSingleQuiz(${i})" class="w-full text-left p-3 rounded-xl bg-slate-800/40 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/30 transition-all flex justify-between items-center group text-sm">
+                    <span class="block font-bold text-slate-200 group-hover:text-amber-400">${modeNames[i]}</span>
+                    <i data-lucide="play-circle" class="w-4 h-4 text-slate-500 group-hover:text-amber-500"></i>
                 </button>`;
         }
         lucide.createIcons();
@@ -460,23 +477,42 @@
         
         qTimerMax = parseInt(document.getElementById('single-timer-sec').value) || 30;
         const useTimer = document.getElementById('single-timer-toggle').checked;
-        if(!useTimer) qTimerMax = 0; // 0 means no timer
+        if(!useTimer) qTimerMax = 0;
+        
+        // ★修正点：出題数を読み込んで問題配列をカットする
+        const qCount = parseInt(document.getElementById('single-q-count').value) || 10;
 
         let pool = [];
         if (mode === 8) {
             for(let m in quizDatabase) pool = pool.concat(quizDatabase[m]);
-            activeQuestions = pool.sort(()=>Math.random()-0.5).slice(0, 100); // ランダム無限は100問
+            activeQuestions = pool.sort(()=>Math.random()-0.5).slice(0, qCount);
             document.getElementById('quiz-mode-badge').textContent = "ランダム特訓";
         } else {
-            activeQuestions = [...quizDatabase[mode]].sort(()=>Math.random()-0.5);
+            pool = [...quizDatabase[mode]];
+            activeQuestions = pool.sort(()=>Math.random()-0.5).slice(0, qCount);
             document.getElementById('quiz-mode-badge').textContent = `第${mode}章`;
         }
         
+        // もし指定された出題数が用意された問題より多い場合、配列の長さに自動で調整されます
         document.getElementById('multi-scoreboard').classList.add('hidden');
         document.getElementById('global-timer-badge').classList.add('hidden');
         
         switchScreen('menu-screen', 'play-screen');
         loadQuestion();
+    };
+
+    // --- ★追加：途中でやめる機能 ---
+    window.quitQuiz = function() {
+        if(!confirm("本当にクイズを途中でやめますか？")) return;
+        playSound('click');
+        if(qTimerId) clearInterval(qTimerId);
+        if(gTimerId) clearInterval(gTimerId);
+        
+        if(isMultiplayer) {
+            leaveRoom("クイズをリタイアしました");
+        } else {
+            switchScreen('play-screen', 'menu-screen');
+        }
     };
 
     // --- 2. マルチプレイ (部屋作成・参加) ---
@@ -488,7 +524,6 @@
         document.getElementById('player-name-display').textContent = myPlayerName;
         document.getElementById('player-name-display').classList.remove('hidden');
 
-        // 短いIDを発行
         const roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
         try {
             await setDoc(getRoomDoc(roomId), {
@@ -517,7 +552,6 @@
             const docSnap = await getDoc(getRoomDoc(rId));
             if(!docSnap.exists() || docSnap.data().status !== 'waiting') return alert("部屋が存在しないか、既に開始されています。");
             
-            // プレイヤー追加
             await updateDoc(getRoomDoc(rId), {
                 [`players.${myUid}`]: { name: myPlayerName, score: 0, combo: 0, progress: 0, isFinished: false }
             });
@@ -530,7 +564,6 @@
         currentRoomId = roomId;
         document.getElementById('lobby-room-id').textContent = roomId;
         
-        // ホスト/ゲストのUI切り替え
         if(isHost) {
             document.getElementById('lobby-guest-overlay').classList.add('hidden');
             document.getElementById('lobby-start-btn').classList.remove('hidden');
@@ -547,7 +580,6 @@
             roomSettings = data.settings;
             roomPlayers = data.players || {};
             
-            // 参加者リスト更新
             const listEl = document.getElementById('lobby-players-list');
             listEl.innerHTML = "";
             let pCount = 0;
@@ -560,7 +592,6 @@
             document.getElementById('lobby-player-count').textContent = pCount;
             lucide.createIcons();
 
-            // ゲスト向け設定UI同期
             if(!isHost) {
                 document.getElementById('lobby-game-type').value = roomSettings.gameType;
                 document.getElementById('lobby-max-q').value = roomSettings.maxQuestions;
@@ -570,13 +601,11 @@
                 toggleSettingFields();
             }
 
-            // ゲーム開始検知
             if(data.status === 'playing' && document.getElementById('lobby-screen').classList.contains('hidden') === false) {
                 activeQuestions = JSON.parse(data.questions);
                 startMultiGame();
             }
 
-            // プレイ中の他プレイヤーステータス更新
             if(data.status === 'playing' || data.status === 'finished') {
                 updateMultiScoreboard();
                 checkIfAllFinished(data);
@@ -584,7 +613,6 @@
         });
     }
 
-    // ロビー設定のUI制御
     window.updateRoomSettings = function() {
         if(!isHost || !currentRoomId) return;
         toggleSettingFields();
@@ -609,17 +637,14 @@
         }
     }
 
-    // ホストによるゲーム開始
     window.startMultiplayerGame = async function() {
         playSound('click');
-        // 問題配列の生成
         const m = roomSettings.quizMode;
         let pool = [];
         if(m === "8") { for(let k in quizDatabase) pool = pool.concat(quizDatabase[k]); } 
         else { pool = [...quizDatabase[m]]; }
         pool.sort(()=>Math.random()-0.5);
         
-        // 必要な問題数 (時間制限型なら多めに100問)
         const qCount = roomSettings.gameType === 'count' ? roomSettings.maxQuestions : 100;
         const selected = pool.slice(0, Math.min(qCount, pool.length));
 
@@ -668,7 +693,8 @@
         const ansInput = document.getElementById('user-answer');
         ansInput.value = ""; ansInput.disabled = false; ansInput.focus();
         
-        document.getElementById('quiz-progress').textContent = `${activeIndex + 1} 問目`;
+        // ★修正点：X / Y 問目 の表記
+        document.getElementById('quiz-progress').textContent = `${activeIndex + 1} / ${activeQuestions.length} 問目`;
         document.getElementById('quiz-question').textContent = activeQuestions[activeIndex].q;
         
         updateScoreUI();
@@ -700,7 +726,7 @@
             document.getElementById('global-timer-sec').textContent = gTimerVal;
             if(gTimerVal <= 0) {
                 clearInterval(gTimerId);
-                finishMultiGameSelf(); // 全体時間切れで自分のゲーム終了
+                finishMultiGameSelf();
             }
         }, 1000);
     }
@@ -728,7 +754,6 @@
             correctCount++; currentCombo++;
             if(currentCombo > maxCombo) maxCombo = currentCombo;
             
-            // スコア計算: 基本100 + タイムボーナス(MAX100) + コンボボーナス(50*combo)
             const timeBonus = qTimerMax > 0 ? Math.floor((qTimerVal / qTimerMax) * 100) : 0;
             const comboBonus = currentCombo * 50;
             pointEarned = 100 + timeBonus + comboBonus;
@@ -742,8 +767,8 @@
             document.getElementById('override-btn').classList.add('hidden');
         } else {
             playSound('incorrect');
-            previousCombo = currentCombo; // コンボリセット前に保存
-            currentCombo = 0; // コンボリセット
+            previousCombo = currentCombo; 
+            currentCombo = 0; 
             fp.className = "p-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300";
             document.getElementById('feedback-icon').textContent = isTimeout ? "⏰" : "❌";
             document.getElementById('feedback-title').textContent = isTimeout ? "時間切れ..." : "不正解...";
@@ -777,9 +802,9 @@
     window.overrideAsCorrect = function() {
         playSound('correct'); 
         correctCount++; 
-        currentCombo = previousCombo + 1; // 記録していたコンボ数を復元
+        currentCombo = previousCombo + 1; 
         if(currentCombo > maxCombo) maxCombo = currentCombo;
-        const pointEarned = 100 + (currentCombo * 50); // タイムボーナスは0とする
+        const pointEarned = 100 + (currentCombo * 50); 
         totalScore += pointEarned;
 
         document.getElementById('feedback-panel').className = "p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
@@ -798,17 +823,12 @@
         activeIndex++;
         
         if(isMultiplayer) {
-            // 問題数型の場合は、規定数に達したら終了
             if(roomSettings.gameType === 'count' && activeIndex >= activeQuestions.length) {
                 finishMultiGameSelf();
-            } 
-            // 時間制限型の場合は、配列の最後に達したら終了（通常は時間切れまで到達しないよう大量配置）
-            else if (activeIndex >= activeQuestions.length) {
+            } else if (activeIndex >= activeQuestions.length) {
                 finishMultiGameSelf();
-            }
-            else { loadQuestion(); }
+            } else { loadQuestion(); }
         } else {
-            // シングル
             if (activeIndex < activeQuestions.length) loadQuestion();
             else showResultSingle();
         }
@@ -828,7 +848,6 @@
         const board = document.getElementById('multi-scoreboard');
         board.innerHTML = "";
         
-        // スコア順にソートして表示
         const sortedPlayers = Object.values(roomPlayers).sort((a,b) => b.score - a.score);
         sortedPlayers.forEach((p, idx) => {
             const isMe = p.name === myPlayerName ? "border-emerald-500 bg-emerald-900/40" : "border-slate-700 bg-slate-800";
@@ -849,10 +868,9 @@
         if(qTimerId) clearInterval(qTimerId);
         if(gTimerId) clearInterval(gTimerId);
         
-        // 自分が終了状態になったことを通知
         updateDoc(getRoomDoc(currentRoomId), {
             [`players.${myUid}.isFinished`]: true,
-            [`players.${myUid}.score`]: totalScore // 最終スコア確定
+            [`players.${myUid}.score`]: totalScore 
         }).catch(e=>console.log(e));
 
         document.getElementById('quiz-question').textContent = "全員が終了するのを待っています...";
@@ -871,12 +889,10 @@
         
         if(allFin && data.status !== 'finished') {
             if(isHost) {
-                // ホストがステータスを更新
                 updateDoc(getRoomDoc(currentRoomId), { status: 'finished' });
             }
         }
         
-        // finishedになったらリザルトへ
         if(data.status === 'finished' && document.getElementById('result-screen').classList.contains('hidden')) {
             showResultMulti();
         }
