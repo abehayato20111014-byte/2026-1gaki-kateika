@@ -12,6 +12,7 @@
             --secondary: #F39C12;
             --danger: #E74C3C;
             --success: #2ECC71;
+            --warning: #F1C40F;
             --bg: #F4F7F6;
             --card-bg: #FFFFFF;
             --text: #333333;
@@ -59,10 +60,16 @@
             opacity: 0.9;
             transform: translateY(-2px);
         }
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
         .btn-primary { background-color: var(--primary); color: white; }
         .btn-danger { background-color: var(--danger); color: white; }
         .btn-success { background-color: var(--success); color: white; }
         .btn-secondary { background-color: var(--secondary); color: white; }
+        .btn-warning { background-color: var(--warning); color: #333; }
 
         /* Form Elements */
         .settings-group {
@@ -74,7 +81,7 @@
             padding: 15px;
             border-radius: 8px;
         }
-        select, input[type="number"] {
+        select, input[type="number"], input[type="text"] {
             padding: 8px;
             border-radius: 4px;
             border: 1px solid #ccc;
@@ -129,9 +136,9 @@
             font-size: 16px;
             border: 2px solid transparent;
         }
-        .option-btn:hover { background: #e2e2e2; }
-        .option-btn.correct { background: var(--success); color: white; }
-        .option-btn.wrong { background: var(--danger); color: white; }
+        .option-btn:hover:not(:disabled) { background: #e2e2e2; }
+        .option-btn.correct { background: var(--success); color: white; border-color: var(--success); }
+        .option-btn.wrong { background: var(--danger); color: white; border-color: var(--danger); }
 
         /* Explanation Box */
         .explanation-box {
@@ -143,7 +150,9 @@
         }
         .next-btn-container {
             margin-top: 20px;
-            text-align: right;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
         }
 
         /* Stats & Charts */
@@ -181,19 +190,28 @@
         <h1>幼児発達クイズアプリ</h1>
         
         <div class="settings-group">
+            <label for="quiz-mode">出題形式:</label>
+            <select id="quiz-mode">
+                <option value="choice" selected>4択モード</option>
+                <option value="written">記述モード</option>
+            </select>
+        </div>
+
+        <div class="settings-group">
             <label for="time-limit">1問あたりの制限時間:</label>
             <select id="time-limit">
                 <option value="0">制限なし</option>
                 <option value="10">10秒</option>
                 <option value="20" selected>20秒</option>
                 <option value="30">30秒</option>
+                <option value="60">60秒</option>
             </select>
         </div>
 
         <div class="settings-group">
             <label for="question-count">出題数 (全43問中):</label>
             <div>
-                <input type="number" id="question-count" min="1" max="43" value="10">
+                <input type="number" id="question-count" min="1" max="43" value="10" style="width: 60px;">
                 <button onclick="setAllQuestions()" class="btn-secondary" style="padding: 8px; font-size: 14px;">全問</button>
             </div>
         </div>
@@ -233,14 +251,21 @@
 
         <div id="question-container" class="question-text">ここに問題が表示されます</div>
         
-        <div id="options-container" class="options-grid">
-            </div>
+        <div id="options-container" class="options-grid hidden"></div>
+
+        <div id="written-container" class="hidden" style="text-align: center;">
+            <input type="text" id="written-input" placeholder="答えを入力してください" style="width: 80%; padding: 12px; font-size: 18px; margin-bottom: 15px;" onkeypress="handleEnter(event)">
+            <br>
+            <button class="btn-primary" onclick="submitWrittenAnswer()" style="width: 80%;">回答する</button>
+        </div>
 
         <div id="explanation-container" class="explanation-box hidden">
             <h3 id="result-title"></h3>
+            <p><strong>あなたの回答: </strong><span id="user-answer-text" style="color: #666;"></span></p>
             <p><strong>正解: </strong><span id="correct-answer-text"></span></p>
             <p><strong>解説: </strong><span id="explanation-text"></span></p>
             <div class="next-btn-container">
+                <button id="override-btn" class="btn-warning hidden" onclick="overrideCorrect()">これでも正解にする</button>
                 <button class="btn-primary" onclick="nextQuestion()">次の問題へ</button>
             </div>
         </div>
@@ -315,7 +340,12 @@
     let combo = 0;
     let correctCount = 0;
     let isMistakeMode = false;
+    let currentQuizMode = 'choice'; // 'choice' or 'written'
     
+    // Override related state
+    let previousCombo = 0;
+    let pendingPotentialScore = 0;
+
     // Timer state
     let timeLimit = 0; // in seconds
     let currentTimer = 0;
@@ -332,19 +362,10 @@
     };
 
     function initHome() {
-        // Load mistakes count
         const mistakes = getMistakes();
         document.getElementById('mistake-badge').innerText = mistakes.length;
         document.getElementById('btn-mistake-start').disabled = mistakes.length === 0;
-        if(mistakes.length === 0) {
-            document.getElementById('btn-mistake-start').style.opacity = '0.5';
-            document.getElementById('btn-mistake-start').style.cursor = 'not-allowed';
-        } else {
-            document.getElementById('btn-mistake-start').style.opacity = '1';
-            document.getElementById('btn-mistake-start').style.cursor = 'pointer';
-        }
-
-        // Render Chart and High Score
+        
         updateStats('all', document.querySelector('.filter-btn.active'));
     }
 
@@ -376,13 +397,14 @@
     function startQuiz(mistakeMode) {
         isMistakeMode = mistakeMode;
         timeLimit = parseInt(document.getElementById('time-limit').value);
+        currentQuizMode = document.getElementById('quiz-mode').value;
         let count = parseInt(document.getElementById('question-count').value);
 
         let targetPool = [];
         if (isMistakeMode) {
             const mistakes = getMistakes();
             targetPool = rawData.filter(q => mistakes.includes(q.q));
-            count = targetPool.length; // Override count in mistake mode
+            count = targetPool.length;
         } else {
             targetPool = [...rawData];
         }
@@ -405,30 +427,55 @@
         document.getElementById('question-counter').innerText = `問 ${currentIndex + 1} / ${activeQuestions.length}`;
         document.getElementById('question-container').innerText = qData.q;
         
-        // Hide explanation
+        // Hide explanation and override button
         document.getElementById('explanation-container').classList.add('hidden');
-        document.getElementById('options-container').classList.remove('hidden');
+        document.getElementById('override-btn').classList.add('hidden');
 
-        // Generate 4 options (1 correct, 3 random wrong)
-        const optionsContainer = document.getElementById('options-container');
-        optionsContainer.innerHTML = '';
+        // Setup Input Modes
+        if (currentQuizMode === 'choice') {
+            document.getElementById('written-container').classList.add('hidden');
+            const optionsContainer = document.getElementById('options-container');
+            optionsContainer.classList.remove('hidden');
+            optionsContainer.innerHTML = '';
 
-        let wrongOptions = rawData.filter(item => item.ans !== qData.ans)
-                                  .sort(() => Math.random() - 0.5)
-                                  .slice(0, 3)
-                                  .map(item => item.ans);
-        
-        let allOptions = [qData.ans, ...wrongOptions].sort(() => Math.random() - 0.5);
+            let wrongOptions = rawData.filter(item => item.ans !== qData.ans)
+                                      .sort(() => Math.random() - 0.5)
+                                      .slice(0, 3)
+                                      .map(item => item.ans);
+            
+            let allOptions = [qData.ans, ...wrongOptions].sort(() => Math.random() - 0.5);
 
-        allOptions.forEach(opt => {
-            const btn = document.createElement('button');
-            btn.className = 'option-btn';
-            btn.innerText = opt;
-            btn.onclick = () => handleAnswer(opt, qData.ans);
-            optionsContainer.appendChild(btn);
-        });
+            allOptions.forEach(opt => {
+                const btn = document.createElement('button');
+                btn.className = 'option-btn';
+                btn.innerText = opt;
+                btn.onclick = () => handleAnswer(opt, qData.ans);
+                optionsContainer.appendChild(btn);
+            });
+        } else {
+            // Written Mode
+            document.getElementById('options-container').classList.add('hidden');
+            document.getElementById('written-container').classList.remove('hidden');
+            const inputField = document.getElementById('written-input');
+            inputField.value = '';
+            inputField.disabled = false;
+            setTimeout(() => inputField.focus(), 100); // Auto-focus
+        }
 
         startTimer();
+    }
+
+    function handleEnter(e) {
+        if (e.key === 'Enter') {
+            submitWrittenAnswer();
+        }
+    }
+
+    function submitWrittenAnswer() {
+        const inputField = document.getElementById('written-input');
+        if (!inputField.value.trim() && currentTimer > 0) return; // Prevent empty submit unless timeout
+        inputField.disabled = true;
+        handleAnswer(inputField.value.trim(), activeQuestions[currentIndex].ans);
     }
 
     function startTimer() {
@@ -445,7 +492,11 @@
                 display.innerText = `残り時間: ${currentTimer}秒`;
                 if (currentTimer <= 0) {
                     clearInterval(timerInterval);
-                    handleAnswer(null, activeQuestions[currentIndex].ans); // Time out
+                    if (currentQuizMode === 'choice') {
+                        handleAnswer(null, activeQuestions[currentIndex].ans);
+                    } else {
+                        submitWrittenAnswer();
+                    }
                 }
             }, 1000);
         } else {
@@ -453,20 +504,40 @@
         }
     }
 
+    function calculateEarnedScore(elapsedSeconds, currentCombo) {
+        const baseScore = 100;
+        const comboBonus = currentCombo * 50;
+        let timeBonus = 0;
+        if (timeLimit > 0) {
+            timeBonus = Math.max(0, Math.floor((timeLimit - elapsedSeconds) * (100 / timeLimit)));
+        } else {
+            timeBonus = Math.max(0, Math.floor((15 - elapsedSeconds) * 5));
+        }
+        return baseScore + comboBonus + timeBonus;
+    }
+
     function handleAnswer(selected, correct) {
         clearInterval(timerInterval);
         const elapsedSeconds = (Date.now() - questionStartTime) / 1000;
         const qData = activeQuestions[currentIndex];
 
-        const isCorrect = (selected === correct);
+        // Leniency logic for written mode (e.g., full-width to half-width, lowercase)
+        let normalizedSelected = (selected || "").toString().trim();
+        let normalizedCorrect = correct.toString().trim();
+        const isCorrect = (normalizedSelected === normalizedCorrect);
         
-        // UI Updates for options
-        const buttons = document.querySelectorAll('.option-btn');
-        buttons.forEach(btn => {
-            btn.disabled = true;
-            if (btn.innerText === correct) btn.classList.add('correct');
-            else if (btn.innerText === selected) btn.classList.add('wrong');
-        });
+        // UI Updates
+        if (currentQuizMode === 'choice') {
+            const buttons = document.querySelectorAll('.option-btn');
+            buttons.forEach(btn => {
+                btn.disabled = true;
+                if (btn.innerText === correct) btn.classList.add('correct');
+                else if (btn.innerText === selected) btn.classList.add('wrong');
+            });
+            document.getElementById('user-answer-text').innerText = selected || "時間切れ";
+        } else {
+            document.getElementById('user-answer-text').innerText = selected || "未入力（または時間切れ）";
+        }
 
         const resultTitle = document.getElementById('result-title');
         
@@ -475,33 +546,26 @@
             resultTitle.style.color = "var(--success)";
             correctCount++;
             
-            // Score Calculation
-            // Base: 100
-            // Combo Bonus: +50 per combo count
-            // Time Bonus: Max 100 points, decays over 15 seconds.
-            const baseScore = 100;
-            const comboBonus = combo * 50;
-            let timeBonus = 0;
-            if (timeLimit > 0) {
-                // If limit is 20s, answering in 2s gives more points than 18s.
-                timeBonus = Math.max(0, Math.floor((timeLimit - elapsedSeconds) * (100 / timeLimit)));
-            } else {
-                // No limit time bonus (assume 15 seconds is the sweet spot)
-                timeBonus = Math.max(0, Math.floor((15 - elapsedSeconds) * 5));
-            }
-            
-            const earned = baseScore + comboBonus + timeBonus;
+            const earned = calculateEarnedScore(elapsedSeconds, combo);
             score += earned;
             combo++;
             
-            if(isMistakeMode) {
-                removeMistake(qData.q);
-            }
+            removeMistake(qData.q); // If it was right, remove from mistakes just in case
         } else {
-            resultTitle.innerText = selected === null ? "⏰ 時間切れ..." : "❌ 不正解...";
+            resultTitle.innerText = (selected === null || selected === "") ? "⏰ 時間切れ..." : "❌ 不正解...";
             resultTitle.style.color = "var(--danger)";
+            
+            // Save state in case user overrides
+            previousCombo = combo;
+            pendingPotentialScore = calculateEarnedScore(elapsedSeconds, combo);
+            
             combo = 0;
             addMistake(qData.q);
+
+            // Show override button ONLY in written mode if an answer was provided
+            if (currentQuizMode === 'written' && selected) {
+                document.getElementById('override-btn').classList.remove('hidden');
+            }
         }
 
         updateScoreDisplay();
@@ -510,6 +574,28 @@
         document.getElementById('correct-answer-text').innerText = qData.ans;
         document.getElementById('explanation-text').innerText = qData.exp;
         document.getElementById('explanation-container').classList.remove('hidden');
+    }
+
+    // Override function for written mode
+    function overrideCorrect() {
+        const qData = activeQuestions[currentIndex];
+        
+        // Restore stats
+        correctCount++;
+        combo = previousCombo + 1;
+        score += pendingPotentialScore;
+        
+        // Remove from mistakes since it's now correct
+        removeMistake(qData.q);
+
+        updateScoreDisplay();
+        
+        // Update UI
+        const resultTitle = document.getElementById('result-title');
+        resultTitle.innerText = "⭕️ 正解！（自己判定）";
+        resultTitle.style.color = "var(--success)";
+        
+        document.getElementById('override-btn').classList.add('hidden');
     }
 
     function nextQuestion() {
@@ -553,7 +639,7 @@
 
     // --- Local Storage: Scores ---
     function saveScore(newScore) {
-        if(newScore === 0) return; // Don't save 0 points
+        if(newScore === 0) return;
         let scores = JSON.parse(localStorage.getItem('quizScores') || '[]');
         scores.push({ date: Date.now(), score: newScore });
         localStorage.setItem('quizScores', JSON.stringify(scores));
@@ -577,17 +663,14 @@
 
     // --- Chart & Stats ---
     function updateStats(filterType, btnElement) {
-        // Update active button styling
         document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
         if(btnElement) btnElement.classList.add('active');
 
         const filteredScores = getScores(filterType);
         
-        // Update High Score
         const maxScore = filteredScores.length > 0 ? Math.max(...filteredScores.map(s => s.score)) : 0;
         document.getElementById('high-score-display').innerText = maxScore;
 
-        // Draw Chart
         const ctx = document.getElementById('scoreChart').getContext('2d');
         if (chartInstance) {
             chartInstance.destroy();
