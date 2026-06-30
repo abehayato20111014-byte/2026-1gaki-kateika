@@ -1,0 +1,1083 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>記述式クイズ・特訓システム (オンライン対戦対応)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&family=Noto+Sans+JP:wght@400;700;900&display=swap');
+        
+        body { font-family: 'Plus Jakarta Sans', 'Noto Sans JP', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: rgba(30, 41, 59, 0.5); }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.3); border-radius: 4px; }
+        
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .combo-anim { animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
+        @keyframes pop { 0% { transform: scale(1); } 50% { transform: scale(1.3); } 100% { transform: scale(1); } }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center p-2 sm:p-4 selection:bg-amber-500 selection:text-slate-950">
+
+<div class="bg-slate-900/90 border border-slate-800 rounded-3xl shadow-2xl max-w-4xl w-full p-4 sm:p-6 backdrop-blur-md relative overflow-hidden">
+    <div class="absolute -top-40 -left-40 w-80 h-80 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+    <div class="absolute -bottom-40 -right-40 w-80 h-80 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+    <div id="loading-overlay" class="absolute inset-0 bg-slate-950/80 z-50 flex flex-col items-center justify-center fade-in">
+        <i data-lucide="loader-2" class="w-12 h-12 text-amber-500 animate-spin mb-4"></i>
+        <p class="text-slate-300 font-bold">システムに接続中...</p>
+    </div>
+
+    <div class="flex justify-between items-center mb-6 border-b border-slate-800 pb-4 relative z-10">
+        <div class="flex items-center gap-2">
+            <div class="bg-amber-500 text-slate-950 p-2 rounded-xl shadow-lg">
+                <i data-lucide="graduation-cap" class="w-6 h-6"></i>
+            </div>
+            <div>
+                <span class="text-xs text-amber-500 font-bold tracking-wider uppercase block">Quiz Master</span>
+                <h1 class="text-lg sm:text-xl font-black text-slate-100">記述式 特訓＆対戦アプリ</h1>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            <span id="player-name-display" class="hidden sm:inline-block text-xs font-bold bg-slate-800 px-3 py-1.5 rounded-lg text-slate-300 mr-2 border border-slate-700"></span>
+            <button onclick="toggleMute()" id="mute-btn" class="p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700/60 transition-all text-slate-300">
+                <i data-lucide="volume-2" class="w-5 h-5"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="menu-screen" class="space-y-6 relative z-10 hidden">
+        
+        <div class="bg-gradient-to-r from-emerald-900/40 to-slate-800/40 border border-emerald-500/30 p-5 rounded-2xl">
+            <div class="flex items-center gap-2 mb-4">
+                <i data-lucide="swords" class="w-6 h-6 text-emerald-400"></i>
+                <h2 class="text-emerald-400 font-black text-lg">オンライン対戦ルーム</h2>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-4 items-end">
+                <div class="w-full">
+                    <label class="block text-xs font-bold text-slate-400 mb-1">あなたの名前</label>
+                    <input type="text" id="player-name-input" placeholder="ゲスト" maxlength="8" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                </div>
+                <div class="w-full flex gap-2">
+                    <button onclick="createRoom()" class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-4 py-2.5 rounded-xl transition-all whitespace-nowrap shadow-lg">部屋を作る</button>
+                </div>
+                <div class="w-full flex gap-2">
+                    <input type="text" id="join-room-id" placeholder="ルームID" maxlength="5" class="w-full uppercase bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                    <button onclick="joinRoom()" class="w-full bg-slate-700 hover:bg-slate-600 text-white font-bold px-4 py-2.5 rounded-xl transition-all whitespace-nowrap">参加</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-slate-800/50 rounded-2xl p-4 border border-slate-700/50 flex flex-col sm:flex-row justify-between items-center gap-4">
+            <h2 class="font-bold text-slate-200 flex items-center gap-1.5 text-sm"><i data-lucide="user" class="w-4 h-4 text-amber-500"></i> 一人プレイ設定</h2>
+            <div class="flex items-center gap-4 w-full sm:w-auto">
+                <label class="flex items-center gap-2 cursor-pointer bg-slate-900 px-3 py-2 rounded-xl border border-slate-800">
+                    <input type="checkbox" id="single-timer-toggle" class="rounded text-amber-500 focus:ring-amber-500 bg-slate-800 border-slate-700" checked>
+                    <span class="text-xs font-bold text-slate-300">タイマー有</span>
+                </label>
+                <div class="flex items-center gap-2 bg-slate-900 px-3 py-2 rounded-xl border border-slate-800">
+                    <span class="text-xs font-bold text-slate-400">1問の秒数:</span>
+                    <input type="number" id="single-timer-sec" value="30" min="5" max="120" class="w-14 bg-transparent text-amber-400 font-bold outline-none text-center">
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <h2 class="text-base font-extrabold text-slate-300 mb-3 flex items-center gap-2"><i data-lucide="book-open" class="w-5 h-5 text-amber-400"></i> 出題範囲（一人プレイ）</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-h-[250px] overflow-y-auto pr-1 custom-scrollbar" id="modes-list">
+                </div>
+        </div>
+        <button onclick="startSingleQuiz(8)" class="w-full relative group overflow-hidden bg-gradient-to-r from-amber-500 to-orange-600 text-slate-950 font-black p-4 rounded-2xl transition-all hover:shadow-xl hover:shadow-amber-500/20 flex justify-between items-center">
+            <span class="block text-base font-black flex items-center gap-2"><i data-lucide="zap" class="w-5 h-5"></i> 第8モード：全範囲ランダム（無限）</span>
+            <i data-lucide="arrow-right" class="w-6 h-6"></i>
+        </button>
+    </div>
+
+    <div id="lobby-screen" class="hidden space-y-6 relative z-10 fade-in">
+        <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+            <h2 class="text-xl font-black text-emerald-400 flex items-center gap-2"><i data-lucide="radio" class="w-6 h-6 animate-pulse"></i> 対戦ロビー</h2>
+            <div class="bg-slate-900 border border-emerald-500/50 px-4 py-2 rounded-xl flex items-center gap-3">
+                <span class="text-xs text-slate-400 font-bold">ルームID:</span>
+                <span id="lobby-room-id" class="text-xl font-black text-emerald-400 tracking-widest font-mono">-----</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-slate-800/40 rounded-2xl border border-slate-700/50 p-4">
+                <h3 class="text-sm font-bold text-slate-300 mb-3 flex items-center gap-2"><i data-lucide="users" class="w-4 h-4"></i> 参加者 (<span id="lobby-player-count">1</span>人)</h3>
+                <ul id="lobby-players-list" class="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
+                    </ul>
+            </div>
+
+            <div class="bg-slate-800/40 rounded-2xl border border-slate-700/50 p-4 space-y-3 relative">
+                <div id="lobby-guest-overlay" class="absolute inset-0 bg-slate-900/50 z-10 hidden flex items-center justify-center rounded-2xl backdrop-blur-sm">
+                    <span class="bg-slate-800 px-4 py-2 rounded-xl text-xs font-bold text-emerald-400 border border-emerald-500/30">ホストが設定中です...</span>
+                </div>
+                <h3 class="text-sm font-bold text-slate-300 mb-2 flex items-center gap-2"><i data-lucide="sliders" class="w-4 h-4"></i> ルール設定</h3>
+                
+                <div class="flex items-center justify-between bg-slate-900 p-2.5 rounded-xl border border-slate-700">
+                    <span class="text-xs font-bold text-slate-400">対戦形式</span>
+                    <select id="lobby-game-type" onchange="updateRoomSettings()" class="bg-slate-800 text-amber-400 text-xs font-bold px-2 py-1 rounded outline-none border border-slate-700">
+                        <option value="count">問題数 型（早解き）</option>
+                        <option value="time">時間制限 型（スコア競争）</option>
+                    </select>
+                </div>
+                <div class="flex items-center justify-between bg-slate-900 p-2.5 rounded-xl border border-slate-700" id="lobby-count-setting">
+                    <span class="text-xs font-bold text-slate-400">出題する問題数 (問)</span>
+                    <input type="number" id="lobby-max-q" value="10" min="5" max="50" onchange="updateRoomSettings()" class="bg-slate-800 text-amber-400 text-xs font-bold px-2 py-1 rounded outline-none border border-slate-700 w-16 text-center">
+                </div>
+                <div class="flex items-center justify-between bg-slate-900 p-2.5 rounded-xl border border-slate-700 hidden" id="lobby-time-setting">
+                    <span class="text-xs font-bold text-slate-400">全体制限時間 (秒)</span>
+                    <input type="number" id="lobby-total-time" value="120" min="30" max="600" onchange="updateRoomSettings()" class="bg-slate-800 text-amber-400 text-xs font-bold px-2 py-1 rounded outline-none border border-slate-700 w-16 text-center">
+                </div>
+                <div class="flex items-center justify-between bg-slate-900 p-2.5 rounded-xl border border-slate-700">
+                    <span class="text-xs font-bold text-slate-400">1問の制限時間 (秒)</span>
+                    <input type="number" id="lobby-q-time" value="30" min="5" max="60" onchange="updateRoomSettings()" class="bg-slate-800 text-amber-400 text-xs font-bold px-2 py-1 rounded outline-none border border-slate-700 w-16 text-center">
+                </div>
+                <div class="flex items-center justify-between bg-slate-900 p-2.5 rounded-xl border border-slate-700">
+                    <span class="text-xs font-bold text-slate-400">出題範囲</span>
+                    <select id="lobby-mode" onchange="updateRoomSettings()" class="bg-slate-800 text-amber-400 text-xs font-bold px-2 py-1 rounded outline-none border border-slate-700 w-32">
+                        <option value="8">全範囲ランダム</option>
+                        <option value="1">第一章（体の発達）</option>
+                        <option value="2">第二章（心と社会性）</option>
+                        <option value="3">第三章（生活と食事）</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-between items-center pt-4">
+            <button onclick="leaveRoom()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold px-6 py-3 rounded-xl border border-slate-700 transition-all text-sm">
+                退室する
+            </button>
+            <button id="lobby-start-btn" onclick="startMultiplayerGame()" class="hidden bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black px-8 py-3 rounded-xl shadow-lg transition-all text-sm">
+                全員でゲーム開始！
+            </button>
+        </div>
+    </div>
+
+    <div id="play-screen" class="hidden space-y-4 relative z-10 fade-in">
+        
+        <div id="multi-scoreboard" class="hidden bg-slate-900/80 border border-emerald-500/30 p-2 rounded-xl overflow-x-auto custom-scrollbar flex gap-2 items-center mb-2">
+            </div>
+
+        <div class="flex flex-col sm:flex-row justify-between items-stretch gap-2">
+            <div class="bg-slate-850 px-4 py-3 rounded-2xl border border-slate-800 flex justify-between items-center flex-1">
+                <div class="flex items-center gap-2">
+                    <span id="quiz-mode-badge" class="text-xs font-black text-amber-400 bg-amber-400/10 px-2 py-1 rounded-lg border border-amber-500/20">モード</span>
+                    <span id="global-timer-badge" class="hidden text-xs font-bold text-rose-400 bg-rose-400/10 px-2 py-1 rounded-lg flex items-center gap-1 border border-rose-500/30">
+                        <i data-lucide="alarm-clock" class="w-3.5 h-3.5"></i> 残り <span id="global-timer-sec">0</span>秒
+                    </span>
+                </div>
+                <span id="quiz-progress" class="text-xs text-slate-400 font-mono font-bold">1問目</span>
+            </div>
+            
+            <div class="bg-gradient-to-r from-amber-600/20 to-orange-600/20 px-4 py-2 rounded-2xl border border-amber-500/30 flex justify-between items-center sm:min-w-[200px]">
+                <div>
+                    <span class="block text-[10px] text-amber-500/80 font-bold uppercase tracking-wider">SCORE</span>
+                    <span id="score-display" class="text-xl font-black text-amber-400 font-mono">0<span class="text-sm">pt</span></span>
+                </div>
+                <div id="combo-display" class="text-sm font-black text-orange-400 opacity-50 transition-all">
+                    0 Combo
+                </div>
+            </div>
+        </div>
+
+        <div id="timer-bar-container" class="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+            <div id="timer-bar" class="h-full bg-amber-500 transition-all duration-100" style="width: 100%"></div>
+        </div>
+
+        <div class="bg-slate-800/40 p-5 rounded-2xl border border-slate-800/80 relative min-h-[100px] flex items-center">
+            <span class="absolute -top-3 left-6 px-3 py-0.5 bg-slate-900 border border-slate-800 rounded-full text-[10px] font-bold text-slate-400">Question</span>
+            <p id="quiz-question" class="text-base sm:text-lg font-bold leading-relaxed text-slate-100"></p>
+        </div>
+
+        <div class="space-y-3">
+            <label class="block text-xs font-bold text-slate-400">あなたの解答 (平仮名も自動判定)：</label>
+            <div class="flex flex-col sm:flex-row gap-2">
+                <input type="text" id="user-answer" placeholder="解答を入力..." class="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white focus:ring-2 focus:ring-amber-500 outline-none font-medium" autocomplete="off" onkeydown="handleEnterKey(event)">
+                <button id="submit-btn" onclick="submitUserAnswer()" class="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-8 py-3 rounded-xl transition-all shadow-lg whitespace-nowrap">
+                    判定
+                </button>
+            </div>
+        </div>
+
+        <div id="feedback-panel" class="hidden p-4 rounded-2xl border transition-all fade-in">
+            <div class="flex items-start gap-3">
+                <span id="feedback-icon" class="text-2xl">⭕</span>
+                <div class="space-y-1 w-full">
+                    <div class="flex justify-between items-start gap-2">
+                        <div>
+                            <h3 id="feedback-title" class="font-extrabold text-lg">正解！</h3>
+                            <span id="feedback-point" class="text-xs font-bold font-mono">+0pt</span>
+                        </div>
+                        <button id="override-btn" onclick="overrideAsCorrect()" class="text-[10px] font-bold bg-slate-850 hover:bg-slate-800 text-slate-300 border border-slate-700 rounded-lg px-2 py-1 transition-all flex items-center gap-1 hidden">
+                            <i data-lucide="check-square" class="w-3 h-3 text-amber-500"></i>正解にする
+                        </button>
+                    </div>
+                    <p id="feedback-correct-answers" class="text-sm font-bold text-white"></p>
+                    <p id="feedback-explanation" class="text-xs text-slate-300 pt-2 border-t border-white/10 mt-2"></p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex justify-end pt-2">
+            <button id="next-btn" onclick="goToNextQuestion()" class="hidden w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-white font-bold px-8 py-3 rounded-xl border border-slate-700 flex items-center justify-center gap-2">
+                <span id="next-btn-text">次の問題へ</span> <i data-lucide="arrow-right" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </div>
+
+    <div id="result-screen" class="hidden text-center py-6 space-y-6 relative z-10 fade-in">
+        <h2 class="text-2xl font-black text-slate-100 border-b border-slate-800 pb-2">最終結果発表</h2>
+        
+        <div id="result-multi-ranking" class="hidden max-w-md mx-auto space-y-2">
+            </div>
+
+        <div id="result-single-stats" class="max-w-sm mx-auto space-y-4">
+            <div class="bg-gradient-to-r from-amber-600/20 to-orange-600/20 border border-amber-500/30 rounded-2xl p-6">
+                <span class="block text-amber-500 text-xs font-bold mb-1">獲得トータルスコア</span>
+                <span id="result-final-score" class="text-5xl font-black text-amber-400 font-mono drop-shadow-md">0</span>
+                <span class="text-sm text-amber-500 font-bold ml-1">pt</span>
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-800/40 border border-slate-700 rounded-xl p-3">
+                    <span class="block text-slate-400 text-[10px] font-bold">正解数</span>
+                    <span id="result-correct-count" class="text-xl font-black text-slate-200">0</span>
+                </div>
+                <div class="bg-slate-800/40 border border-slate-700 rounded-xl p-3">
+                    <span class="block text-slate-400 text-[10px] font-bold">最大コンボ</span>
+                    <span id="result-max-combo" class="text-xl font-black text-orange-400">0</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="pt-6 flex justify-center">
+            <button onclick="leaveToMenu()" class="bg-slate-800 hover:bg-slate-700 text-white font-extrabold px-8 py-3 rounded-xl border border-slate-700 w-full sm:w-auto transition-all">
+                メニューに戻る
+            </button>
+        </div>
+    </div>
+</div>
+
+<script type="module">
+    // --- Firebase Init (Rule 3: Auth Before Queries, Rule 1: Strict Paths) ---
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-app.js";
+    import { getFirestore, collection, doc, setDoc, getDoc, updateDoc, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-firestore.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/12.15.0/firebase-auth.js";
+
+    const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+        apiKey: "AIzaSyDicI5O04YZ-xKC65QdLspvBTcEc9CYlQ0",
+        authDomain: "kanisns.firebaseapp.com",
+        projectId: "kanisns"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'history-quiz-app';
+
+    let myUid = "local_guest";
+    
+    // Auth Initialization
+    const initAuth = async () => {
+        try {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                const cred = await signInWithCustomToken(auth, __initial_auth_token);
+                myUid = cred.user.uid;
+            } else {
+                const cred = await signInAnonymously(auth);
+                myUid = cred.user.uid;
+            }
+            document.getElementById('loading-overlay').classList.add('hidden');
+            document.getElementById('menu-screen').classList.remove('hidden');
+            drawMenu();
+        } catch (e) {
+            console.error("Auth error", e);
+            document.getElementById('loading-overlay').innerHTML = "<p class='text-rose-500 font-bold'>認証エラーが発生しました。</p>";
+        }
+    };
+    initAuth();
+
+    function getRoomsRef() {
+        return collection(db, 'artifacts', appId, 'public', 'data', 'rooms');
+    }
+    function getRoomDoc(roomId) {
+        return doc(db, 'artifacts', appId, 'public', 'data', 'rooms', roomId);
+    }
+
+    // --- 完全網羅問題データベース (幼児発達) ---
+    const quizDatabase = {1[
+{
+"q": "母体から離れて初めて外の新しい世界に触れ、自分の口から栄養をとり、外の環境に適応していく時期を何といいますか。",
+"ans": "新生児期",
+"exp": "ページの端（欄外）に記載されています。乳児期のさらに初期の段階を指します。"
+},
+{
+"q": "幼児期の身体の発育・発達について学ぶことは、家庭科以外にどのような教科と関連していますか。資料に記載されているものを2つ挙げてください。",
+"ans": "保健体育（体の発育・発達）、道徳（個性や立場の尊重）",
+"exp": "教科書の左上に「他教科」のアイコンとして記載されています。"
+},
+{
+"q": "生まれたときの身長と体重の平均はそれぞれ約どれくらいですか。",
+"ans": "身長：約50cm、体重：約3kg",
+"exp": "「幼児期の身長と体重の平均」の表に記載されています。"
+},
+{
+"q": "1歳の身長と体重の平均はそれぞれ約どれくらいですか。",
+"ans": "身長：約75cm、体重：約9kg",
+"exp": "生まれたときの約1.5倍（身長）、約3倍（体重）になります。"
+},
+{
+"q": "4歳の身長と体重の平均はそれぞれ約どれくらいですか。",
+"ans": "身長：約100cm、体重：約15kg",
+"exp": "生まれたときの約2倍（身長）、約5倍（体重）になります。"
+},
+{
+"q": "幼児期に著しく発達する機能のうち、身長や体重、消化吸収・呼吸のほかに挙げられている重要な機能は何ですか。",
+"ans": "脳と神経系の機能",
+"exp": "表の下の吹き出し部分に記述されています。"
+},
+{
+"q": "幼児は身長に対してどの部分が大きく、またどの部分が短いためバランスが取りにくくなっていますか。",
+"ans": "頭が大きく、腕や脚が短い。",
+"exp": "この体型の特徴により、転倒したり転落したりしやすい時期とされています。"
+}
+],
+//第一章（幼児の体の発達と特徴）
+
+2[
+{
+"q": "幼児の体や運動機能の発達には、個人差はありますが一定の何と何がありますか。",
+"ans": "方向と順序",
+"exp": "本文と図1のタイトル部分で強調されています。"
+},
+{
+"q": "運動機能の発達によって何が広がり、何が刺激されますか。",
+"ans": "行動範囲が広がり、好奇心が刺激される。",
+"exp": "また、その好奇心によって運動機能がさらに刺激されるというように、相互に発達します。"
+},
+{
+"q": "体の中心軸（骨格）の発達順序を、「首が据わる」から「一人歩き」まで順に答えてください。",
+"ans": "首が据わって頭部を支える → 背骨や腰がしっかりしてお座りができる → 伝い歩き → 一人歩き",
+"exp": "図1の解説文として記載されており、上から下へと発達していく方向を示しています。"
+},
+{
+"q": "腕や手の発達は、どのような方向に向かって進みますか。",
+"ans": "腕全体から次第に手先に向かって発達する。",
+"exp": "これにより、次第に指先を器用に使うことができるようになります。"
+},
+{
+"q": "全身の運動機能の具体的な発達の例を、「はいはいをする」から順番に4段階で答えてください。",
+"ans": "はいはいをする → 一人で歩く → 走る、跳ぶ → スキップする",
+"exp": "図2の写真とともに段階的に示されています。"
+},
+{
+"q": "手先の運動機能の具体的な発達の例を、「物をつかむ」から順番に4段階で答えてください。",
+"ans": "物をつかむ → クレヨンを使う → はさみを使う → 鉛筆を使う",
+"exp": "細かい動きがだんだんできるようになり、正確さを増していきます。"
+},
+{
+"q": "1歳と4歳の呼吸数の目安（1分間あたり）をそれぞれ答えてください。",
+"ans": "1歳：30〜40回/分、4歳：25〜30回/分",
+"exp": "発達に伴い、呼吸数はだんだんと減少していきます。"
+},
+{
+"q": "1歳と4歳の脈拍数の目安（1分間あたり）をそれぞれ答えてください。",
+"ans": "1歳：120〜140回/分、4歳：90〜120回/分",
+"exp": "脈拍数も呼吸数と同様に、年齢が上がるにつれて減少します。"
+},
+{
+"q": "1歳と4歳の睡眠時間の目安（1日あたり）をそれぞれ答えてください。",
+"ans": "1歳：12〜16時間、4歳：10〜12時間",
+"exp": "幼児は疲れの回復や次の活動へのエネルギーを蓄えるために、多くの睡眠時間を必要とします。"
+},
+{
+"q": "幼児はなぜ汗をかきやすいのですか。2つの理由を答えてください。",
+"ans": "体温が高く、体温を調節する機能が未熟だから。",
+"exp": "生理的機能の特徴として本文に記載されています。そのため十分な水分補給が必要です。"
+}
+],
+//第二章（運動機能と生理的機能の発達）
+
+3[
+{
+"q": "「自分で服を脱ぎ着したり、排せつしたり、友達と遊ぶ中で自分で判断して行動したりするなど、自分の力で生活できること」を何といいますか。",
+"ans": "自立",
+"exp": "ページの左上の用語解説（★1）に記載されています。"
+},
+{
+"q": "「これが欲しい、こうしたいという欲求があっても、その場面に応じて自分の感情や行動をコントロールすること」を何といいますか。",
+"ans": "自律",
+"exp": "ページの左上の用語解説（★2）に記載されています。"
+},
+{
+"q": "幼児の心の発達において、言葉、認知、情緒、社会性などはそれぞれ切り離されて一方向に伸びるのではなく、どのように発達していきますか。",
+"ans": "相互に関わりながら広がるように発達していく。",
+"exp": "「相互に発達する幼児の心」の資料文に記載されています。"
+},
+{
+"q": "2歳頃から自我（自分の意思）が芽生え、自分の思いが理解されないと泣いて叫んだり、「いや」「じぶんで」と言い張ったりする時期を何といいますか。",
+"ans": "第1次反抗期",
+"exp": "この時期に気持ちを認められることで基本的な信頼感が育ち、自分を大切にしたり他者を思いやったりする気持ちが育つといわれています。"
+},
+{
+"q": "言葉の発達において、意味のある言葉（1語）を使うのは、「アー」「ウー」などの声の後ですが、具体的な言葉の例を2つ挙げてください。",
+"ans": "パパ、ママ",
+"exp": "その後、2語文（「ワンワン、いた」など）、3〜4語文（「ちょうちょ、おはなに、みてる」など）へと発達します。"
+},
+{
+"q": "幼児期特有のものの捉え方で、「生命のないものにも自分と同じように命や意識があると思う」ことを何といいますか。",
+"ans": "アニミズム",
+"exp": "認知の発達の欄に記載されており、例として「おはなさん、わらってるよ」というセリフが描かれています。"
+},
+{
+"q": "言葉で十分伝えられない幼児にとって、笑う、泣く、恥ずかしがるなどの「情緒の表現」はどのような役割を果たしていますか。",
+"ans": "大切なコミュニケーションの手段",
+"exp": "年齢が低いほど率直で激しい情緒を表現し、周囲の大人がそれを受け止めることが大切です。"
+},
+{
+"q": "社会性の発達において、家族や周りの人との温かい触れ合いや遊びの中で、どのようなことを身に付けていきますか。",
+"ans": "自己主張したり、我慢したり、人を思いやったりすること。",
+"exp": "写真の例として「物の取り合い」や「思いやり」などが挙げられています。"
+}
+],
+//第三章（心・言葉・認知・情緒・社会性の発達）
+
+4[
+{
+"q": "幼児の心身の健康の基本は、「よく遊び」「よく食べ」あと一つは何ですか。",
+"ans": "よく眠ること",
+"exp": "幼児の1日は「遊び」を中心として構成されています。"
+},
+{
+"q": "1歳児と5歳児の生活の大きな違いとして、睡眠に関してどのような変化がありますか。",
+"ans": "1歳児は昼寝を必要とするが、5歳児は体力がつくため昼寝が減る。",
+"exp": "グラフを見ると、1歳児には昼寝があり、5歳児には昼寝の時間がありません。"
+},
+{
+"q": "人間の体内時計（約24時間周期）が作られるのは生後どれくらいと言われていますか。",
+"ans": "生後3〜4か月くらい",
+"exp": "欄外の「メモ」に記載されています。"
+},
+{
+"q": "体内時計が作られる時期に、乳児の体内で作られるようになる「睡眠を促すホルモン」の名前は何ですか。",
+"ans": "メラトニン",
+"exp": "これも欄外の「メモ」にあり、夜になるとたくさん分泌されるため昼夜のリズムができます。"
+},
+{
+"q": "幼児の生活を写真などで観察（撮影）する際、必ず保護者や施設に確認しなければならないのはなぜですか（どのようなマナーがありますか）。",
+"ans": "観察の目的などを伝え、許可を得るため。",
+"exp": "右ページの「マナー」の欄に、保護者や施設に確認することの重要性が書かれています。"
+},
+{
+"q": "成人の胃の容量は約1,500mLですが、生まれたときの胃の容量は約何mLですか。",
+"ans": "約50mL",
+"exp": "幼児期には大人の2分の1程度にまで急速に大きくなります。また、新生児の胃は横に寝ている状態に近いですが、成長に伴って縦向きに変化します。"
+},
+{
+"q": "幼児の胃は大人に比べて小さく、一度にたくさんの量を食べられないため、3回の食事以外に何が必要ですか。",
+"ans": "間食（おやつ）",
+"exp": "食事の一部として、不足しがちな栄養素やエネルギーを取り入れるための軽食です。"
+},
+{
+"q": "幼児にとっての間食は、栄養摂取以外にどのような意味を持ちますか。",
+"ans": "幼児にとっての楽しみという意味。",
+"exp": "そのため、幼児が楽しめる工夫をすることも推奨されています。"
+},
+{
+"q": "幼児の食事の時間は、栄養やエネルギーの摂取という以外に、どのようなことを身に付ける場ですか。",
+"ans": "食事のマナーを知ったり、社会性を身に付ける場。",
+"exp": "家族や友達と楽しく食べることを経験し、大人と一緒に楽しい雰囲気で食事をすることが大切です。"
+}
+]
+//第四章（生活リズムと食事・栄養）};
+
+    // --- 音声・補助 ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    window.isMuted = false;
+    window.toggleMute = function() {
+        window.isMuted = !window.isMuted;
+        document.getElementById('mute-btn').innerHTML = window.isMuted ? '<i data-lucide="volume-x"></i>' : '<i data-lucide="volume-2"></i>';
+        lucide.createIcons();
+    };
+    function playSound(type) {
+        if (window.isMuted) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator(); const gainNode = audioCtx.createGain();
+        osc.connect(gainNode); gainNode.connect(audioCtx.destination);
+        const now = audioCtx.currentTime;
+        if (type === 'correct') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(523.25, now); osc.frequency.setValueAtTime(659.25, now + 0.12);
+            gainNode.gain.setValueAtTime(0.15, now); gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+            osc.start(now); osc.stop(now + 0.4);
+        } else if (type === 'incorrect') {
+            osc.type = 'sawtooth'; osc.frequency.setValueAtTime(150, now); osc.frequency.setValueAtTime(120, now + 0.15);
+            gainNode.gain.setValueAtTime(0.1, now); gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+            osc.start(now); osc.stop(now + 0.5);
+        } else if (type === 'click') {
+            osc.type = 'sine'; osc.frequency.setValueAtTime(1000, now);
+            gainNode.gain.setValueAtTime(0.05, now); gainNode.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+            osc.start(now); osc.stop(now + 0.05);
+        }
+    }
+    function hiraganize(str) {
+        if (!str) return "";
+        let val = str.replace(/[Ａ-Ｚａ-ｚ０-９]/g, s => String.fromCharCode(s.charCodeAt(0) - 0xFEE0));
+        val = val.replace(/[\u30a1-\u30f6]/g, m => String.fromCharCode(m.charCodeAt(0) - 0x60));
+        return val.replace(/[\s 、。]/g, "").replace(/ねん$/, "").replace(/年$/, "").toLowerCase();
+    }
+    function switchScreen(hideId, showId) {
+        document.getElementById(hideId).classList.add('hidden');
+        document.getElementById(showId).classList.remove('hidden');
+    }
+
+    // --- State ---
+    let myPlayerName = "ゲスト";
+    let isMultiplayer = false;
+    let activeQuestions = [];
+    let activeIndex = 0;
+    
+    // スコア管理
+    let totalScore = 0;
+    let correctCount = 0;
+    let currentCombo = 0;
+    let maxCombo = 0;
+    let previousCombo = 0;
+
+    // タイマー管理
+    let qTimerId = null;
+    let qTimerMax = 30;
+    let qTimerVal = 30;
+    
+    let gTimerId = null;
+    let gTimerMax = 0;
+    let gTimerVal = 0;
+    
+    // マルチステート
+    let currentRoomId = null;
+    let unsubscribeRoom = null;
+    let isHost = false;
+    let roomSettings = {};
+    let roomPlayers = {};
+
+    // --- メニュー描画 ---
+    const modeNames = {1:"第一章（体の発達）", 2:"第二章（心と社会性）", 3:"第三章（生活と食事）"};
+    function drawMenu() {
+        const container = document.getElementById('modes-list');
+        container.innerHTML = "";
+        for (let i = 1; i <= 3; i++) {
+            container.innerHTML += `
+                <button onclick="startSingleQuiz(${i})" class="w-full text-left p-3 rounded-xl bg-slate-800/40 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/30 transition-all flex justify-between items-center group">
+                    <span class="block font-bold text-slate-200 text-sm group-hover:text-amber-400">${modeNames[i]}</span>
+                    <i data-lucide="play-circle" class="w-5 h-5 text-slate-500 group-hover:text-amber-500"></i>
+                </button>`;
+        }
+        lucide.createIcons();
+    }
+
+    // --- 1. シングルプレイ ---
+    window.startSingleQuiz = function(mode) {
+        playSound('click');
+        const nameInput = document.getElementById('player-name-input').value.trim();
+        myPlayerName = nameInput || "ゲスト";
+        document.getElementById('player-name-display').textContent = myPlayerName;
+        document.getElementById('player-name-display').classList.remove('hidden');
+
+        isMultiplayer = false;
+        activeIndex = 0; totalScore = 0; correctCount = 0; currentCombo = 0; maxCombo = 0;
+        
+        qTimerMax = parseInt(document.getElementById('single-timer-sec').value) || 30;
+        const useTimer = document.getElementById('single-timer-toggle').checked;
+        if(!useTimer) qTimerMax = 0; // 0 means no timer
+
+        let pool = [];
+        if (mode === 8) {
+            for(let m in quizDatabase) pool = pool.concat(quizDatabase[m]);
+            activeQuestions = pool.sort(()=>Math.random()-0.5).slice(0, 100); // ランダム無限は100問
+            document.getElementById('quiz-mode-badge').textContent = "ランダム特訓";
+        } else {
+            activeQuestions = [...quizDatabase[mode]].sort(()=>Math.random()-0.5);
+            document.getElementById('quiz-mode-badge').textContent = `第${mode}モード`;
+        }
+        
+        document.getElementById('multi-scoreboard').classList.add('hidden');
+        document.getElementById('global-timer-badge').classList.add('hidden');
+        
+        switchScreen('menu-screen', 'play-screen');
+        loadQuestion();
+    };
+
+    // --- 2. マルチプレイ (部屋作成・参加) ---
+    window.createRoom = async function() {
+        playSound('click');
+        const name = document.getElementById('player-name-input').value.trim();
+        if(!name) return alert("名前を入力してください");
+        myPlayerName = name;
+        document.getElementById('player-name-display').textContent = myPlayerName;
+        document.getElementById('player-name-display').classList.remove('hidden');
+
+        // 短いIDを発行
+        const roomId = Math.random().toString(36).substring(2, 7).toUpperCase();
+        try {
+            await setDoc(getRoomDoc(roomId), {
+                hostUid: myUid,
+                status: 'waiting',
+                settings: { gameType: 'count', maxQuestions: 10, totalTime: 180, timePerQ: 30, quizMode: "8" },
+                players: { [myUid]: { name: myPlayerName, score: 0, combo: 0, progress: 0, isFinished: false } },
+                questions: "[]",
+                createdAt: serverTimestamp()
+            });
+            isHost = true;
+            joinLobby(roomId);
+        } catch(e) { console.error(e); alert("部屋の作成に失敗しました。"); }
+    };
+
+    window.joinRoom = async function() {
+        playSound('click');
+        const name = document.getElementById('player-name-input').value.trim();
+        const rId = document.getElementById('join-room-id').value.trim().toUpperCase();
+        if(!name || !rId) return alert("名前とルームIDを入力してください");
+        myPlayerName = name;
+        document.getElementById('player-name-display').textContent = myPlayerName;
+        document.getElementById('player-name-display').classList.remove('hidden');
+
+        try {
+            const docSnap = await getDoc(getRoomDoc(rId));
+            if(!docSnap.exists() || docSnap.data().status !== 'waiting') return alert("部屋が存在しないか、既に開始されています。");
+            
+            // プレイヤー追加
+            await updateDoc(getRoomDoc(rId), {
+                [`players.${myUid}`]: { name: myPlayerName, score: 0, combo: 0, progress: 0, isFinished: false }
+            });
+            isHost = false;
+            joinLobby(rId);
+        } catch(e) { console.error(e); alert("参加に失敗しました。"); }
+    };
+
+    function joinLobby(roomId) {
+        currentRoomId = roomId;
+        document.getElementById('lobby-room-id').textContent = roomId;
+        
+        // ホスト/ゲストのUI切り替え
+        if(isHost) {
+            document.getElementById('lobby-guest-overlay').classList.add('hidden');
+            document.getElementById('lobby-start-btn').classList.remove('hidden');
+        } else {
+            document.getElementById('lobby-guest-overlay').classList.remove('hidden');
+            document.getElementById('lobby-start-btn').classList.add('hidden');
+        }
+
+        switchScreen('menu-screen', 'lobby-screen');
+
+        unsubscribeRoom = onSnapshot(getRoomDoc(roomId), (docSnap) => {
+            if(!docSnap.exists()) return leaveRoom("部屋が解散されました");
+            const data = docSnap.data();
+            roomSettings = data.settings;
+            roomPlayers = data.players || {};
+            
+            // 参加者リスト更新
+            const listEl = document.getElementById('lobby-players-list');
+            listEl.innerHTML = "";
+            let pCount = 0;
+            for(let uid in roomPlayers) {
+                pCount++;
+                const isMe = uid === myUid ? " (あなた)" : "";
+                const isHostIcon = uid === data.hostUid ? `<i data-lucide="crown" class="w-3 h-3 text-amber-400"></i>` : "";
+                listEl.innerHTML += `<li class="bg-slate-900 px-3 py-2 rounded-lg text-sm text-slate-300 font-bold border border-slate-700 flex items-center gap-2">${isHostIcon} ${escapeHTML(roomPlayers[uid].name)} <span class="text-emerald-500">${isMe}</span></li>`;
+            }
+            document.getElementById('lobby-player-count').textContent = pCount;
+            lucide.createIcons();
+
+            // ゲスト向け設定UI同期
+            if(!isHost) {
+                document.getElementById('lobby-game-type').value = roomSettings.gameType;
+                document.getElementById('lobby-max-q').value = roomSettings.maxQuestions;
+                document.getElementById('lobby-total-time').value = roomSettings.totalTime;
+                document.getElementById('lobby-q-time').value = roomSettings.timePerQ;
+                document.getElementById('lobby-mode').value = roomSettings.quizMode;
+                toggleSettingFields();
+            }
+
+            // ゲーム開始検知
+            if(data.status === 'playing' && document.getElementById('lobby-screen').classList.contains('hidden') === false) {
+                activeQuestions = JSON.parse(data.questions);
+                startMultiGame();
+            }
+
+            // プレイ中の他プレイヤーステータス更新
+            if(data.status === 'playing' || data.status === 'finished') {
+                updateMultiScoreboard();
+                checkIfAllFinished(data);
+            }
+        });
+    }
+
+    // ロビー設定のUI制御
+    window.updateRoomSettings = function() {
+        if(!isHost || !currentRoomId) return;
+        toggleSettingFields();
+        const settings = {
+            gameType: document.getElementById('lobby-game-type').value,
+            maxQuestions: parseInt(document.getElementById('lobby-max-q').value),
+            totalTime: parseInt(document.getElementById('lobby-total-time').value),
+            timePerQ: parseInt(document.getElementById('lobby-q-time').value),
+            quizMode: document.getElementById('lobby-mode').value
+        };
+        updateDoc(getRoomDoc(currentRoomId), { settings: settings }).catch(e=>console.log(e));
+    };
+
+    function toggleSettingFields() {
+        const type = document.getElementById('lobby-game-type').value;
+        if(type === 'count') {
+            document.getElementById('lobby-count-setting').classList.remove('hidden');
+            document.getElementById('lobby-time-setting').classList.add('hidden');
+        } else {
+            document.getElementById('lobby-count-setting').classList.add('hidden');
+            document.getElementById('lobby-time-setting').classList.remove('hidden');
+        }
+    }
+
+    // ホストによるゲーム開始
+    window.startMultiplayerGame = async function() {
+        playSound('click');
+        // 問題配列の生成
+        const m = roomSettings.quizMode;
+        let pool = [];
+        if(m === "8") { for(let k in quizDatabase) pool = pool.concat(quizDatabase[k]); } 
+        else { pool = [...quizDatabase[m]]; }
+        pool.sort(()=>Math.random()-0.5);
+        
+        // 必要な問題数 (時間制限型なら多めに100問)
+        const qCount = roomSettings.gameType === 'count' ? roomSettings.maxQuestions : 100;
+        const selected = pool.slice(0, Math.min(qCount, pool.length));
+
+        try {
+            await updateDoc(getRoomDoc(currentRoomId), {
+                questions: JSON.stringify(selected),
+                status: 'playing'
+            });
+        } catch(e) { console.error(e); alert("開始エラー"); }
+    };
+
+    function startMultiGame() {
+        isMultiplayer = true;
+        activeIndex = 0; totalScore = 0; correctCount = 0; currentCombo = 0; maxCombo = 0;
+        qTimerMax = roomSettings.timePerQ;
+        
+        document.getElementById('multi-scoreboard').classList.remove('hidden');
+        document.getElementById('quiz-mode-badge').textContent = "オンライン対戦";
+
+        if(roomSettings.gameType === 'time') {
+            document.getElementById('global-timer-badge').classList.remove('hidden');
+            gTimerMax = roomSettings.totalTime;
+            gTimerVal = gTimerMax;
+            startGlobalTimer();
+        } else {
+            document.getElementById('global-timer-badge').classList.add('hidden');
+        }
+
+        switchScreen('lobby-screen', 'play-screen');
+        loadQuestion();
+    }
+
+    window.leaveRoom = function(msg) {
+        if(unsubscribeRoom) unsubscribeRoom();
+        if(msg) alert(msg);
+        switchScreen('lobby-screen', 'menu-screen');
+    };
+
+    // --- 3. クイズ進行ロジック ---
+    function loadQuestion() {
+        if(qTimerId) clearInterval(qTimerId);
+        document.getElementById('feedback-panel').classList.add('hidden');
+        document.getElementById('next-btn').classList.add('hidden');
+        document.getElementById('submit-btn').classList.remove('hidden');
+        
+        const ansInput = document.getElementById('user-answer');
+        ansInput.value = ""; ansInput.disabled = false; ansInput.focus();
+        
+        document.getElementById('quiz-progress').textContent = `${activeIndex + 1} 問目`;
+        document.getElementById('quiz-question').textContent = activeQuestions[activeIndex].q;
+        
+        updateScoreUI();
+
+        if (qTimerMax > 0) {
+            document.getElementById('timer-bar-container').classList.remove('hidden');
+            startQTimer();
+        } else {
+            document.getElementById('timer-bar-container').classList.add('hidden');
+        }
+    }
+
+    function startQTimer() {
+        qTimerVal = qTimerMax;
+        document.getElementById('timer-bar').style.width = "100%";
+        document.getElementById('timer-bar').className = "h-full bg-amber-500 transition-all";
+        
+        qTimerId = setInterval(() => {
+            qTimerVal--;
+            document.getElementById('timer-bar').style.width = `${(qTimerVal/qTimerMax)*100}%`;
+            if (qTimerVal <= 0) { clearInterval(qTimerId); processAnswer(false, true); }
+        }, 1000);
+    }
+
+    function startGlobalTimer() {
+        document.getElementById('global-timer-sec').textContent = gTimerVal;
+        gTimerId = setInterval(() => {
+            gTimerVal--;
+            document.getElementById('global-timer-sec').textContent = gTimerVal;
+            if(gTimerVal <= 0) {
+                clearInterval(gTimerId);
+                finishMultiGameSelf(); // 全体時間切れで自分のゲーム終了
+            }
+        }, 1000);
+    }
+
+    window.submitUserAnswer = function() {
+        const userInput = document.getElementById('user-answer').value.trim();
+        if (!userInput) return;
+        if(qTimerId) clearInterval(qTimerId);
+        
+        const currentQ = activeQuestions[activeIndex];
+        const isCorrect = currentQ.ans.some(a => hiraganize(userInput).includes(hiraganize(a)) || hiraganize(a).includes(hiraganize(userInput)));
+        processAnswer(isCorrect, false);
+    };
+
+    function processAnswer(isCorrect, isTimeout) {
+        const currentQ = activeQuestions[activeIndex];
+        document.getElementById('user-answer').disabled = true;
+        document.getElementById('submit-btn').classList.add('hidden');
+        document.getElementById('next-btn').classList.remove('hidden');
+        const fp = document.getElementById('feedback-panel'); fp.classList.remove('hidden');
+        
+        let pointEarned = 0;
+        if (isCorrect && !isTimeout) {
+            playSound('correct'); 
+            correctCount++; currentCombo++;
+            if(currentCombo > maxCombo) maxCombo = currentCombo;
+            
+            // スコア計算: 基本100 + タイムボーナス(MAX100) + コンボボーナス(50*combo)
+            const timeBonus = qTimerMax > 0 ? Math.floor((qTimerVal / qTimerMax) * 100) : 0;
+            const comboBonus = currentCombo * 50;
+            pointEarned = 100 + timeBonus + comboBonus;
+            totalScore += pointEarned;
+
+            fp.className = "p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+            document.getElementById('feedback-icon').textContent = "⭕";
+            document.getElementById('feedback-title').textContent = "正解！";
+            document.getElementById('feedback-point').textContent = `+${pointEarned}pt`;
+            document.getElementById('feedback-point').className = "text-sm font-black font-mono text-emerald-400 combo-anim inline-block ml-2";
+            document.getElementById('override-btn').classList.add('hidden');
+        } else {
+            playSound('incorrect');
+            previousCombo = currentCombo; // コンボリセット前に保存
+            currentCombo = 0; // コンボリセット
+            fp.className = "p-4 rounded-2xl border border-rose-500/30 bg-rose-500/10 text-rose-300";
+            document.getElementById('feedback-icon').textContent = isTimeout ? "⏰" : "❌";
+            document.getElementById('feedback-title').textContent = isTimeout ? "時間切れ..." : "不正解...";
+            document.getElementById('feedback-point').textContent = "";
+            if(!isTimeout) document.getElementById('override-btn').classList.remove('hidden');
+        }
+
+        document.getElementById('feedback-correct-answers').innerHTML = `正解: <span class="text-white underline decoration-amber-400 font-bold">${currentQ.ans[0]}</span>`;
+        document.getElementById('feedback-explanation').textContent = currentQ.exp || "";
+        
+        updateScoreUI();
+        
+        if(isMultiplayer) sendProgress();
+        else document.getElementById('next-btn').focus();
+    }
+
+    function updateScoreUI() {
+        document.getElementById('score-display').innerHTML = `${totalScore}<span class="text-sm">pt</span>`;
+        const comboEl = document.getElementById('combo-display');
+        if(currentCombo >= 2) {
+            comboEl.textContent = `🔥 ${currentCombo} Combo!`;
+            comboEl.classList.remove('opacity-50');
+            comboEl.classList.add('combo-anim');
+            setTimeout(()=>comboEl.classList.remove('combo-anim'), 300);
+        } else {
+            comboEl.textContent = "0 Combo";
+            comboEl.classList.add('opacity-50');
+        }
+    }
+
+    window.overrideAsCorrect = function() {
+        playSound('correct'); 
+        correctCount++; 
+        currentCombo = previousCombo + 1; // 記録していたコンボ数を復元
+        if(currentCombo > maxCombo) maxCombo = currentCombo;
+        const pointEarned = 100 + (currentCombo * 50); // タイムボーナスは0とする
+        totalScore += pointEarned;
+
+        document.getElementById('feedback-panel').className = "p-4 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-300";
+        document.getElementById('feedback-icon').textContent = "⭕";
+        document.getElementById('feedback-title').textContent = "正解 (修正)";
+        document.getElementById('feedback-point').textContent = `+${pointEarned}pt`;
+        document.getElementById('feedback-point').className = "text-sm font-black font-mono text-emerald-400 combo-anim inline-block ml-2";
+        document.getElementById('override-btn').classList.add('hidden');
+        
+        updateScoreUI();
+        if(isMultiplayer) sendProgress();
+    };
+
+    window.goToNextQuestion = function() {
+        playSound('click');
+        activeIndex++;
+        
+        if(isMultiplayer) {
+            // 問題数型の場合は、規定数に達したら終了
+            if(roomSettings.gameType === 'count' && activeIndex >= activeQuestions.length) {
+                finishMultiGameSelf();
+            } 
+            // 時間制限型の場合は、配列の最後に達したら終了（通常は時間切れまで到達しないよう大量配置）
+            else if (activeIndex >= activeQuestions.length) {
+                finishMultiGameSelf();
+            }
+            else { loadQuestion(); }
+        } else {
+            // シングル
+            if (activeIndex < activeQuestions.length) loadQuestion();
+            else showResultSingle();
+        }
+    };
+
+    // --- マルチプレイの同期と終了判定 ---
+    function sendProgress() {
+        if(!isMultiplayer || !currentRoomId) return;
+        updateDoc(getRoomDoc(currentRoomId), {
+            [`players.${myUid}.score`]: totalScore,
+            [`players.${myUid}.combo`]: currentCombo,
+            [`players.${myUid}.progress`]: activeIndex + 1
+        }).catch(e=>console.log(e));
+    }
+
+    function updateMultiScoreboard() {
+        const board = document.getElementById('multi-scoreboard');
+        board.innerHTML = "";
+        
+        // スコア順にソートして表示
+        const sortedPlayers = Object.values(roomPlayers).sort((a,b) => b.score - a.score);
+        sortedPlayers.forEach((p, idx) => {
+            const isMe = p.name === myPlayerName ? "border-emerald-500 bg-emerald-900/40" : "border-slate-700 bg-slate-800";
+            const comboText = p.combo >= 2 ? `<span class="text-[10px] text-orange-400 ml-1">🔥${p.combo}</span>` : "";
+            const finishedText = p.isFinished ? `<span class="text-[10px] text-slate-400 ml-1">FIN</span>` : "";
+            
+            board.innerHTML += `
+                <div class="px-3 py-1.5 rounded-lg border ${isMe} flex items-center gap-2 whitespace-nowrap">
+                    <span class="text-xs font-bold text-slate-300">${idx+1}. ${escapeHTML(p.name)}</span>
+                    <span class="text-xs font-black text-amber-400 font-mono">${p.score}pt</span>
+                    ${comboText} ${finishedText}
+                </div>
+            `;
+        });
+    }
+
+    function finishMultiGameSelf() {
+        if(qTimerId) clearInterval(qTimerId);
+        if(gTimerId) clearInterval(gTimerId);
+        
+        // 自分が終了状態になったことを通知
+        updateDoc(getRoomDoc(currentRoomId), {
+            [`players.${myUid}.isFinished`]: true,
+            [`players.${myUid}.score`]: totalScore // 最終スコア確定
+        }).catch(e=>console.log(e));
+
+        document.getElementById('quiz-question').textContent = "全員が終了するのを待っています...";
+        document.getElementById('user-answer').disabled = true;
+        document.getElementById('submit-btn').classList.add('hidden');
+        document.getElementById('next-btn').classList.add('hidden');
+        document.getElementById('feedback-panel').classList.add('hidden');
+        document.getElementById('timer-bar-container').classList.add('hidden');
+    }
+
+    function checkIfAllFinished(data) {
+        let allFin = true;
+        for(let uid in data.players) {
+            if(!data.players[uid].isFinished) allFin = false;
+        }
+        
+        if(allFin && data.status !== 'finished') {
+            if(isHost) {
+                // ホストがステータスを更新
+                updateDoc(getRoomDoc(currentRoomId), { status: 'finished' });
+            }
+        }
+        
+        // finishedになったらリザルトへ
+        if(data.status === 'finished' && document.getElementById('result-screen').classList.contains('hidden')) {
+            showResultMulti();
+        }
+    }
+
+    // --- 結果表示 ---
+    function showResultSingle() {
+        document.getElementById('result-multi-ranking').classList.add('hidden');
+        document.getElementById('result-single-stats').classList.remove('hidden');
+
+        document.getElementById('result-final-score').textContent = totalScore;
+        document.getElementById('result-correct-count').textContent = `${correctCount} / ${activeQuestions.length}`;
+        document.getElementById('result-max-combo').textContent = maxCombo;
+
+        switchScreen('play-screen', 'result-screen');
+    }
+
+    function showResultMulti() {
+        if(qTimerId) clearInterval(qTimerId);
+        if(gTimerId) clearInterval(gTimerId);
+        
+        document.getElementById('result-single-stats').classList.add('hidden');
+        const rankingContainer = document.getElementById('result-multi-ranking');
+        rankingContainer.classList.remove('hidden');
+        rankingContainer.innerHTML = "";
+
+        const sorted = Object.values(roomPlayers).sort((a,b) => b.score - a.score);
+        
+        sorted.forEach((p, idx) => {
+            let medal = `<span class="w-6 h-6 rounded-full bg-slate-800 text-slate-400 font-bold flex items-center justify-center text-xs">${idx+1}</span>`;
+            if(idx===0) medal = `<span class="w-6 h-6 rounded-full bg-amber-400 text-slate-900 font-bold flex items-center justify-center"><i data-lucide="medal" class="w-3.5 h-3.5"></i></span>`;
+            
+            const isMe = p.name === myPlayerName ? "bg-emerald-900/30 border-emerald-500/50" : "bg-slate-800/50 border-slate-700";
+            
+            rankingContainer.innerHTML += `
+                <div class="flex justify-between items-center p-3 rounded-xl border ${isMe}">
+                    <div class="flex items-center gap-3">
+                        ${medal}
+                        <span class="font-bold text-slate-200">${escapeHTML(p.name)}</span>
+                    </div>
+                    <span class="text-lg font-black text-amber-400 font-mono">${p.score} <span class="text-xs">pt</span></span>
+                </div>
+            `;
+        });
+        
+        switchScreen('play-screen', 'result-screen');
+        lucide.createIcons();
+    }
+
+    window.leaveToMenu = function() {
+        playSound('click');
+        if(unsubscribeRoom) unsubscribeRoom();
+        currentRoomId = null; isHost = false;
+        switchScreen('result-screen', 'menu-screen');
+    };
+
+    window.handleEnterKey = (e) => { 
+        if(e.key==="Enter"){ 
+            if(!document.getElementById('submit-btn').classList.contains('hidden')) {
+                submitUserAnswer(); 
+            }
+        } 
+    };
+
+    function escapeHTML(str) { return str.replace(/[&<>'"]/g, t => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[t] || t)); }
+</script>
+
+</body>
+</html>
